@@ -6,7 +6,9 @@ export default function TerminalChat() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Array<{ id: string, role: string, content: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFocused, setIsFocused] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Auto-scroll
   useEffect(() => {
@@ -51,6 +53,8 @@ export default function TerminalChat() {
       console.error('Error:', error);
     } finally {
       setIsLoading(false);
+      // Refocus the input after response completes
+      setTimeout(() => inputRef.current?.focus(), 0);
     }
   };
 
@@ -99,7 +103,7 @@ export default function TerminalChat() {
                 {m.role === 'user' ? (
                   <>
                     <p className="text-[#00ff00]">
-                      <span className="opacity-60">user@groq</span>
+                      <span className="opacity-60">user@ai</span>
                       <span className="opacity-40">:</span>
                       <span className="opacity-60">~</span>
                       <span className="text-[#00ff00]">$</span> <span className="text-white">{m.content}</span>
@@ -125,17 +129,20 @@ export default function TerminalChat() {
           <form onSubmit={handleSubmit} className="relative mt-4 pt-3 border-t border-[#00ff00]/20">
             <div className="flex items-center gap-1 text-sm">
               <span className="text-[#00ff00] opacity-60 shrink-0">
-                user@groq<span className="opacity-40">:</span>
+                user@ai<span className="opacity-40">:</span>
                 <span className="opacity-60">~</span>
                 <span className="text-[#00ff00]">$</span>
               </span>
               <span className="text-[#00ff00]">{input}</span>
-              <span className="text-[#00ff00]">▊</span>
+              {isFocused && <span className="text-[#00ff00] animate-pulse">▊</span>}
             </div>
             <input
+              ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               disabled={isLoading}
               className="absolute inset-0 opacity-0 w-full"
               autoFocus

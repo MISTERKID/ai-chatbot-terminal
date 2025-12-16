@@ -103,7 +103,7 @@ export default function TerminalChat() {
                 {m.role === 'user' ? (
                   <>
                     <p className="text-[#00ff00]">
-                      <span className="opacity-60">user@ai</span>
+                      <span className="opacity-60">me@ai</span>
                       <span className="opacity-40">:</span>
                       <span className="opacity-60">~</span>
                       <span className="text-[#00ff00]">$</span> <span className="text-white">{m.content}</span>
@@ -129,7 +129,7 @@ export default function TerminalChat() {
           <form onSubmit={handleSubmit} className="relative mt-4 pt-3 border-t border-[#00ff00]/20">
             <div className="flex items-center gap-1 text-sm">
               <span className="text-[#00ff00] opacity-60 shrink-0">
-                user@ai<span className="opacity-40">:</span>
+                me@ai<span className="opacity-40">:</span>
                 <span className="opacity-60">~</span>
                 <span className="text-[#00ff00]">$</span>
               </span>

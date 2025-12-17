@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 
 export default function TerminalChat() {
   const [input, setInput] = useState('');
+  const [cursorPosition, setCursorPosition] = useState(0);
   const [messages, setMessages] = useState<Array<{ id: string, role: string, content: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFocused, setIsFocused] = useState(true);
@@ -15,6 +16,53 @@ export default function TerminalChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isLoading) return;
+
+    switch (e.key) {
+      case 'ArrowLeft':
+        e.preventDefault();
+        setCursorPosition(prev => Math.max(0, prev - 1));
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        setCursorPosition(prev => Math.min(input.length, prev + 1));
+        break;
+      case 'Home':
+        e.preventDefault();
+        setCursorPosition(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        setCursorPosition(input.length);
+        break;
+      case 'Backspace':
+        if (cursorPosition > 0) {
+          e.preventDefault();
+          const newInput = input.slice(0, cursorPosition - 1) + input.slice(cursorPosition);
+          setInput(newInput);
+          setCursorPosition(cursorPosition - 1);
+        }
+        break;
+      case 'Delete':
+        if (cursorPosition < input.length) {
+          e.preventDefault();
+          const newInput = input.slice(0, cursorPosition) + input.slice(cursorPosition + 1);
+          setInput(newInput);
+        }
+        break;
+      default:
+        // Handle regular character input
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          const newInput = input.slice(0, cursorPosition) + e.key + input.slice(cursorPosition);
+          setInput(newInput);
+          setCursorPosition(cursorPosition + 1);
+        }
+        break;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -22,6 +70,7 @@ export default function TerminalChat() {
     const userMessage = { id: Date.now().toString(), role: 'user', content: input };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
+    setCursorPosition(0);
     setIsLoading(true);
 
     try {
@@ -133,14 +182,33 @@ export default function TerminalChat() {
                 <span className="opacity-60">~</span>
                 <span className="text-[#00ff00]">$</span>
               </span>
-              <span className="text-[#00ff00]">{input}</span>
-              {isFocused && <span className="text-[#00ff00] animate-pulse">▊</span>}
+              <span className="text-[#00ff00] relative">
+                {input.split('').map((char, i) => (
+                  <span key={i} className="relative inline-block">
+                    {i === cursorPosition && isFocused && (
+                      <span className="absolute inset-0 bg-[#00ff00] animate-pulse" />
+                    )}
+                    <span className={i === cursorPosition && isFocused ? "relative text-black" : "relative"}>
+                      {char}
+                    </span>
+                  </span>
+                ))}
+                {cursorPosition === input.length && isFocused && (
+                  <span className="inline-block bg-[#00ff00] animate-pulse">
+                    <span className="text-black opacity-0">_</span>
+                  </span>
+                )}
+              </span>
             </div>
             <input
               ref={inputRef}
               type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                setCursorPosition(e.target.value.length);
+              }}
+              onKeyDown={handleKeyDown}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
               disabled={isLoading}

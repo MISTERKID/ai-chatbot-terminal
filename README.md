@@ -48,8 +48,8 @@ A **retro-style terminal chatbot** with **Hybrid RAG (Retrieval-Augmented Genera
 
 1. **Clone the repository**
    ```bash
-   git clone <your-repo-url>
-   cd aiplayground
+   git clone https://github.com/MISTERKID/ai-chatbot-terminal.git
+   cd ai-chatbot-terminal
    ```
 
 2. **Install dependencies**

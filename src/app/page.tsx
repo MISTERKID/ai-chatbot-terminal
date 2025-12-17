@@ -2,23 +2,378 @@
 
 import { useState, useEffect, useRef } from 'react';
 
+type FileItem = { id: string; filename: string; mode: string };
+
+let messageIdCounter = 0;
+const generateMessageId = () => `msg-${Date.now()}-${messageIdCounter++}`;
+
 export default function TerminalChat() {
   const [input, setInput] = useState('');
   const [cursorPosition, setCursorPosition] = useState(0);
   const [messages, setMessages] = useState<Array<{ id: string, role: string, content: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFocused, setIsFocused] = useState(true);
+  const [docStats, setDocStats] = useState({ temporary: 0, permanent: 0 });
+  const [uploadMode, setUploadMode] = useState<'temporary' | 'permanent'>('temporary');
+
+  // Delete mode states
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [deleteFiles, setDeleteFiles] = useState<FileItem[]>([]);
+  const [selectedFileIndex, setSelectedFileIndex] = useState(0);
+
+  // Clear mode states
+  const [clearMode, setClearMode] = useState(false);
+  const [selectedClearOption, setSelectedClearOption] = useState(0);
+  const clearOptions = ['Clear All', 'Clear Temporary', 'Clear Permanent'];
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Fetch document stats
+  const fetchDocStats = async () => {
+    try {
+      const res = await fetch('/api/docs/list');
+      const data = await res.json();
+      setDocStats({
+        temporary: data.temporary?.length || 0,
+        permanent: data.permanent?.length || 0
+      });
+    } catch (e) {
+      console.error('Failed to fetch doc stats', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchDocStats();
+  }, []);
+
+  // Keep input focused in delete/clear mode and refocus when exiting
+  useEffect(() => {
+    // Always refocus the input when deleteMode or clearMode changes
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, [deleteMode, deleteFiles, clearMode]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const uploadMsgId = generateMessageId();
+    setMessages(prev => [...prev, {
+      id: uploadMsgId,
+      role: 'assistant',
+      content: `Uploading ${file.name} to ${uploadMode} storage...`
+    }]);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('mode', uploadMode);
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setMessages(prev => prev.map(m =>
+          m.id === uploadMsgId
+            ? { ...m, content: `✓ Uploaded ${file.name} to ${uploadMode} storage.` }
+            : m
+        ));
+        fetchDocStats();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      setMessages(prev => prev.map(m =>
+        m.id === uploadMsgId
+          ? { ...m, content: `❌ Upload failed: ${error}` }
+          : m
+      ));
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteFile = async () => {
+    const fileToDelete = deleteFiles[selectedFileIndex];
+    if (!fileToDelete) return;
+
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/docs/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: fileToDelete.id,
+          mode: fileToDelete.mode
+        })
+      });
+
+      if (res.ok) {
+        setMessages(prev => [...prev, {
+          id: generateMessageId(),
+          role: 'assistant',
+          content: `✓ Deleted ${fileToDelete.filename}`
+        }]);
+        fetchDocStats();
+        setDeleteMode(false);
+        setDeleteFiles([]);
+        setSelectedFileIndex(0);
+      } else {
+        throw new Error('Delete failed');
+      }
+    } catch (e) {
+      setMessages(prev => [...prev, {
+        id: generateMessageId(),
+        role: 'assistant',
+        content: `❌ Failed to delete ${fileToDelete.filename}`
+      }]);
+    } finally {
+      setIsLoading(false);
+      // Refocus input after delete completes
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  };
+
+  const handleClearAction = async () => {
+    const option = clearOptions[selectedClearOption];
+    let targetMode: 'temporary' | 'permanent' | 'all';
+
+    if (option === 'Clear All') {
+      targetMode = 'all';
+    } else if (option === 'Clear Temporary') {
+      targetMode = 'temporary';
+    } else {
+      targetMode = 'permanent';
+    }
+
+
+
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/docs/clear', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: targetMode })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Clear failed');
+      }
+
+      setMessages(prev => [...prev, {
+        id: generateMessageId(),
+        role: 'assistant',
+        content: `✓ Cleared ${targetMode} documents.`
+      }]);
+      fetchDocStats();
+      setClearMode(false);
+      setSelectedClearOption(0);
+    } catch (e) {
+      setMessages(prev => [...prev, {
+        id: generateMessageId(),
+        role: 'assistant',
+        content: `Failed to clear docs: ${e}`
+      }]);
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  };
+
+  const handleCommand = async (cmd: string) => {
+    const args = cmd.split(' ');
+    const command = args[0];
+
+    if (command === '/upload') {
+      const mode = args[1];
+
+      // Set upload mode
+      if (mode === 'save' || mode === 'permanent') {
+        setUploadMode('permanent');
+      } else {
+        setUploadMode('temporary');
+      }
+
+      // Trigger file picker
+      setTimeout(() => {
+        if (fileInputRef.current) {
+          fileInputRef.current.click();
+        }
+      }, 50);
+
+      return true;
+    }
+
+    if (command === '/docs') {
+      setIsLoading(true);
+      try {
+        const res = await fetch('/api/docs/list');
+        const data = await res.json();
+
+        let content = 'Indexed Documents:\n\n';
+        content += '--- Temporary (Session) ---\n';
+        if (data.temporary?.length) {
+          data.temporary.forEach((d: any) => content += `📄 ${d.filename}\n`);
+        } else {
+          content += '(none)\n';
+        }
+
+        content += '\n--- Permanent (Saved) ---\n';
+        if (data.permanent?.length) {
+          data.permanent.forEach((d: any) => content += `📄 ${d.filename}\n`);
+        } else {
+          content += '(none)\n';
+        }
+
+        setMessages(prev => [...prev, {
+          id: generateMessageId(),
+          role: 'assistant',
+          content
+        }]);
+      } catch (e) {
+        setMessages(prev => [...prev, { id: generateMessageId(), role: 'assistant', content: 'Failed to list docs.' }]);
+      } finally {
+        setIsLoading(false);
+      }
+      return true;
+    }
+
+    if (command === '/clear') {
+      setClearMode(true);
+      setSelectedClearOption(0);
+      setMessages(prev => [...prev, {
+        id: generateMessageId(),
+        role: 'assistant',
+        content: 'Use ↑/↓ arrows to select option, Enter to confirm, Esc to cancel.'
+      }]);
+      return true;
+    }
+
+    if (command === '/delete') {
+      setIsLoading(true);
+      try {
+        const res = await fetch('/api/docs/list');
+        const data = await res.json();
+
+        const allFiles: FileItem[] = [];
+
+        if (data.temporary?.length) {
+          data.temporary.forEach((d: any) => {
+            allFiles.push({ id: d.id, filename: d.filename, mode: 'temporary' });
+          });
+        }
+
+        if (data.permanent?.length) {
+          data.permanent.forEach((d: any) => {
+            allFiles.push({ id: d.id, filename: d.filename, mode: 'permanent' });
+          });
+        }
+
+        if (allFiles.length === 0) {
+          setMessages(prev => [...prev, {
+            id: generateMessageId(),
+            role: 'assistant',
+            content: 'No files to delete.'
+          }]);
+        } else {
+          setDeleteFiles(allFiles);
+          setSelectedFileIndex(0);
+          setDeleteMode(true);
+          setMessages(prev => [...prev, {
+            id: generateMessageId(),
+            role: 'assistant',
+            content: 'Use ↑/↓ arrows to select file, Enter to delete, Esc to cancel.'
+          }]);
+        }
+      } catch (e) {
+        setMessages(prev => [...prev, {
+          id: generateMessageId(),
+          role: 'assistant',
+          content: 'Failed to load files.'
+        }]);
+      } finally {
+        setIsLoading(false);
+      }
+      return true;
+    }
+
+    return false;
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (isLoading) return;
 
+    // Handle clear mode navigation
+    if (clearMode) {
+      switch (e.key) {
+        case 'ArrowUp':
+          e.preventDefault();
+          setSelectedClearOption(prev => Math.max(0, prev - 1));
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          setSelectedClearOption(prev => Math.min(clearOptions.length - 1, prev + 1));
+          break;
+        case 'Enter':
+          e.preventDefault();
+          handleClearAction();
+          break;
+        case 'Escape':
+          e.preventDefault();
+          setClearMode(false);
+          setSelectedClearOption(0);
+          setMessages(prev => [...prev, {
+            id: generateMessageId(),
+            role: 'assistant',
+            content: 'Clear cancelled.'
+          }]);
+          break;
+      }
+      return;
+    }
+
+    // Handle delete mode navigation
+    if (deleteMode) {
+      switch (e.key) {
+        case 'ArrowUp':
+          e.preventDefault();
+          setSelectedFileIndex(prev => Math.max(0, prev - 1));
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          setSelectedFileIndex(prev => Math.min(deleteFiles.length - 1, prev + 1));
+          break;
+        case 'Enter':
+          e.preventDefault();
+          handleDeleteFile();
+          break;
+        case 'Escape':
+          e.preventDefault();
+          setDeleteMode(false);
+          setDeleteFiles([]);
+          setSelectedFileIndex(0);
+          setMessages(prev => [...prev, {
+            id: generateMessageId(),
+            role: 'assistant',
+            content: 'Delete cancelled.'
+          }]);
+          break;
+      }
+      return;
+    }
+
+    // Normal input mode
     switch (e.key) {
       case 'ArrowLeft':
         e.preventDefault();
@@ -52,7 +407,6 @@ export default function TerminalChat() {
         }
         break;
       default:
-        // Handle regular character input
         if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
           e.preventDefault();
           const newInput = input.slice(0, cursorPosition) + e.key + input.slice(cursorPosition);
@@ -67,10 +421,18 @@ export default function TerminalChat() {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    const userMessage = { id: Date.now().toString(), role: 'user', content: input };
+    const cmd = input.trim();
+    const userMessage = { id: generateMessageId(), role: 'user', content: cmd };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setCursorPosition(0);
+
+    // Check for commands first
+    if (cmd.startsWith('/')) {
+      const handled = await handleCommand(cmd);
+      if (handled) return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -100,25 +462,30 @@ export default function TerminalChat() {
       }
     } catch (error) {
       console.error('Error:', error);
+      setMessages(prev => [...prev, { id: generateMessageId(), role: 'assistant', content: 'Connection failed.' }]);
     } finally {
       setIsLoading(false);
-      // Refocus the input after response completes
       setTimeout(() => inputRef.current?.focus(), 0);
     }
   };
 
   return (
     <div className="min-h-screen bg-black text-[#00ff00] font-mono p-6 relative overflow-hidden">
-      {/* Scanline effect */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        className="hidden"
+        accept=".txt,.md,.json,.js,.ts,.tsx,.csv,.pdf"
+      />
+
       <div className="pointer-events-none fixed inset-0 z-50 opacity-10">
         <div className="h-full w-full bg-linear-to-b from-transparent via-[#00ff00] to-transparent animate-scan" />
       </div>
 
-      {/* CRT screen curvature effect */}
       <div className="pointer-events-none fixed inset-0 z-40 bg-gradient-radial from-transparent via-transparent to-black/30" />
 
       <div className="max-w-5xl mx-auto relative z-10">
-        {/* ASCII Header */}
         <pre className="text-[8px] sm:text-[10px] mb-4 opacity-70 leading-tight text-center">
           {`
  █████╗ ██╗     ██████╗██╗  ██╗ █████╗ ████████╗██████╗  ██████╗ ████████╗    ████████╗███████╗██████╗ ███╗   ███╗██╗███╗   ██╗ █████╗ ██╗     
@@ -131,15 +498,17 @@ export default function TerminalChat() {
         </pre>
 
         <div className="border border-[#00ff00] p-6 bg-black/50 backdrop-blur-sm shadow-[0_0_20px_rgba(0,255,0,0.3)] rounded">
-          {/* System Info */}
           <div className="mb-4 text-[11px] opacity-60 space-y-0.5">
             <p>AI CHATBOT TERMINAL v1.0.0</p>
-            <p>System: LPU Inference Engine</p>
+            <p>System: LPU Inference Engine [Hybrid RAG Enabled]</p>
             <p>Model: llama-3.1-8b-instant</p>
+            <p>Session Docs: {docStats.temporary} | Saved Docs: {docStats.permanent}</p>
             <div className="mt-2 h-px bg-[#00ff00]/20" />
+            <div className="text-[10px] mt-1 opacity-50">
+              Usage: <span className="text-white">/upload [temp|save]</span> to upload, <span className="text-white">/docs</span> to list, <span className="text-white">/delete</span> to remove, <span className="text-white">/clear</span> to bulk delete
+            </div>
           </div>
 
-          {/* Messages */}
           <div className="space-y-2 mb-4 max-h-[55vh] overflow-y-auto pr-2 scrollbar-thin">
             {messages.length === 0 && (
               <div className="opacity-50 text-sm">
@@ -174,7 +543,44 @@ export default function TerminalChat() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
+          {/* Clear mode options menu */}
+          {clearMode && (
+            <div className="mb-4 p-3 border border-[#00ff00]/30 rounded bg-black/30">
+              <p className="text-xs opacity-60 mb-2">Select clear option:</p>
+              {clearOptions.map((option, idx) => (
+                <div
+                  key={idx}
+                  className={`text-sm py-1 px-2 ${idx === selectedClearOption
+                    ? 'bg-[#00ff00] text-black font-bold'
+                    : 'text-[#00ff00]'
+                    }`}
+                >
+                  {idx === selectedClearOption && '► '}
+                  {option}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Delete mode file list */}
+          {deleteMode && deleteFiles.length > 0 && (
+            <div className="mb-4 p-3 border border-[#00ff00]/30 rounded bg-black/30">
+              <p className="text-xs opacity-60 mb-2">Select file to delete:</p>
+              {deleteFiles.map((file, idx) => (
+                <div
+                  key={file.id}
+                  className={`text-sm py-1 px-2 ${idx === selectedFileIndex
+                    ? 'bg-[#00ff00] text-black font-bold'
+                    : 'text-[#00ff00]'
+                    }`}
+                >
+                  {idx === selectedFileIndex && '► '}
+                  {file.filename} <span className="opacity-50 text-xs">({file.mode})</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="relative mt-4 pt-3 border-t border-[#00ff00]/20">
             <div className="flex items-center gap-1 text-sm">
               <span className="text-[#00ff00] opacity-60 shrink-0">
@@ -189,7 +595,7 @@ export default function TerminalChat() {
                       <span className="absolute inset-0 bg-[#00ff00] animate-pulse" />
                     )}
                     <span className={i === cursorPosition && isFocused ? "relative text-black" : "relative"}>
-                      {char}
+                      {char === ' ' ? '\u00A0' : char}
                     </span>
                   </span>
                 ))}
@@ -218,14 +624,12 @@ export default function TerminalChat() {
             />
           </form>
 
-          {/* Status bar */}
           <div className="mt-3 pt-2 border-t border-[#00ff00]/10 text-[10px] opacity-40 flex justify-between">
-            <span>STATUS: {isLoading ? 'PROCESSING...' : 'READY'}</span>
+            <span>STATUS: {isLoading ? 'PROCESSING...' : clearMode ? 'CLEAR MODE' : deleteMode ? 'DELETE MODE' : 'READY'}</span>
             <span>MSGS: {messages.length}</span>
           </div>
         </div>
 
-        {/* Footer */}
         <p className="text-center mt-3 text-[10px] opacity-30">
           Powered by Groq LPU™
         </p>

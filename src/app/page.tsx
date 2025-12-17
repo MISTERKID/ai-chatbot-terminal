@@ -62,7 +62,7 @@ export default function TerminalChat() {
     <div className="min-h-screen bg-black text-[#00ff00] font-mono p-6 relative overflow-hidden">
       {/* Scanline effect */}
       <div className="pointer-events-none fixed inset-0 z-50 opacity-10">
-        <div className="h-full w-full bg-gradient-to-b from-transparent via-[#00ff00] to-transparent animate-scan" />
+        <div className="h-full w-full bg-linear-to-b from-transparent via-[#00ff00] to-transparent animate-scan" />
       </div>
 
       {/* CRT screen curvature effect */}

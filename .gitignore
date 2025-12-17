@@ -24,6 +24,12 @@
 .DS_Store
 *.pem
 
+# Transformers.js model cache
+.cache/
+
+# Vector store data (user-specific)
+vector-store.json
+
 # debug
 npm-debug.log*
 yarn-debug.log*

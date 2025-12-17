@@ -59,10 +59,12 @@ A **retro-style terminal chatbot** with **Hybrid RAG (Retrieval-Augmented Genera
 
 3. **Set up environment variables**
    
-   Create a `.env.local` file in the root directory:
-   ```env
-   GROQ_API_KEY=your_groq_api_key_here
+   Copy the example environment file and add your Groq API key:
+   ```bash
+   cp .env.example .env.local
    ```
+   
+   Then edit `.env.local` and replace `your_groq_api_key_here` with your actual Groq API key from [console.groq.com](https://console.groq.com).
 
 4. **Run the development server**
    ```bash

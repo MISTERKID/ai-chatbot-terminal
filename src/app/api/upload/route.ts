@@ -26,13 +26,11 @@ export async function POST(req: NextRequest) {
                 const arrayBuffer = await file.arrayBuffer();
                 const buffer = Buffer.from(arrayBuffer);
 
-                // Use pdf2json
                 const pdfParser = new PDFParser();
 
                 text = await new Promise((resolve, reject) => {
                     pdfParser.on('pdfParser_dataError', (errData: any) => reject(errData.parserError));
                     pdfParser.on('pdfParser_dataReady', (pdfData: any) => {
-                        // Extract text from all pages
                         const textParts: string[] = [];
                         if (pdfData.Pages) {
                             pdfData.Pages.forEach((page: any) => {
@@ -56,7 +54,6 @@ export async function POST(req: NextRequest) {
 
                 console.log('PDF parsed successfully, text length:', text.length);
             } else {
-                // Basic text extraction for other files
                 console.log('Extracting text...');
                 text = await file.text();
             }
@@ -73,10 +70,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'File is empty or text could not be extracted' }, { status: 400 });
         }
 
-        // Generate embedding
         const embedding = await getEmbedding(text);
-
-        // Store
         const store = HybridVectorStore.getInstance();
         const docId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
 

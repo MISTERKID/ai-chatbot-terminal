@@ -1,10 +1,8 @@
 import { pipeline, env } from '@xenova/transformers';
 import path from 'path';
 
-// Configure cache to be in project folder to avoid permission issues
 env.cacheDir = path.join(process.cwd(), '.cache');
 
-// Singleton instance of the embedder
 class Embedder {
     private static instance: any = null;
 
@@ -12,7 +10,6 @@ class Embedder {
         if (this.instance === null) {
             console.log('Loading embedding model...');
             try {
-                // Use a smaller model for faster local inference
                 this.instance = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
                 console.log('Embedding model loaded successfully');
             } catch (e) {

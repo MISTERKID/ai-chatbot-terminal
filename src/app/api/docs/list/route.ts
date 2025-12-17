@@ -12,7 +12,6 @@ export async function GET() {
         perm: docs.permanent
     });
 
-    // Simplify output for UI
     const simplify = (list: any[]) => list.map(d => ({
         id: d.id,
         filename: d.metadata.filename,

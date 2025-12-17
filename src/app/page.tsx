@@ -469,8 +469,9 @@ export default function TerminalChat() {
     }
   };
 
+
   return (
-    <div className="min-h-screen bg-black text-[#00ff00] font-mono p-6 relative overflow-hidden">
+    <div className="h-screen bg-black text-[#00ff00] font-mono p-4 sm:p-6 relative overflow-hidden flex flex-col">
       <input
         type="file"
         ref={fileInputRef}
@@ -485,8 +486,8 @@ export default function TerminalChat() {
 
       <div className="pointer-events-none fixed inset-0 z-40 bg-gradient-radial from-transparent via-transparent to-black/30" />
 
-      <div className="max-w-5xl mx-auto relative z-10">
-        <pre className="text-[8px] sm:text-[10px] mb-4 opacity-70 leading-tight text-center">
+      <div className="max-w-5xl w-full mx-auto relative z-10 flex flex-col h-full">
+        <pre className="text-[8px] sm:text-[10px] mb-4 opacity-70 leading-tight text-center shrink-0">
           {`
  █████╗ ██╗     ██████╗██╗  ██╗ █████╗ ████████╗██████╗  ██████╗ ████████╗    ████████╗███████╗██████╗ ███╗   ███╗██╗███╗   ██╗ █████╗ ██╗     
 ██╔══██╗██║    ██╔════╝██║  ██║██╔══██╗╚══██╔══╝██╔══██╗██╔═══██╗╚══██╔══╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║██║████╗  ██║██╔══██╗██║     
@@ -497,8 +498,8 @@ export default function TerminalChat() {
 `}
         </pre>
 
-        <div className="border border-[#00ff00] p-6 bg-black/50 backdrop-blur-sm shadow-[0_0_20px_rgba(0,255,0,0.3)] rounded">
-          <div className="mb-4 text-[11px] opacity-60 space-y-0.5">
+        <div className="border border-[#00ff00] p-4 sm:p-6 bg-black/50 backdrop-blur-sm shadow-[0_0_20px_rgba(0,255,0,0.3)] rounded flex flex-col flex-1 min-h-0">
+          <div className="mb-4 text-[11px] opacity-60 space-y-0.5 shrink-0">
             <p>AI CHATBOT TERMINAL v1.0.0</p>
             <p>System: LPU Inference Engine [Hybrid RAG Enabled]</p>
             <p>Model: llama-3.1-8b-instant</p>
@@ -509,7 +510,7 @@ export default function TerminalChat() {
             </div>
           </div>
 
-          <div className="space-y-2 mb-4 max-h-[55vh] overflow-y-auto pr-2 scrollbar-thin">
+          <div className="space-y-2 mb-4 flex-1 overflow-y-auto pr-2 scrollbar-thin min-h-0" onClick={() => inputRef.current?.focus()}>
             {messages.length === 0 && (
               <div className="opacity-50 text-sm">
                 <p>&gt; Ready for input...</p>
@@ -540,97 +541,98 @@ export default function TerminalChat() {
             {isLoading && (
               <span className="inline-block animate-pulse text-sm">█</span>
             )}
+
+            {/* Clear mode options menu */}
+            {clearMode && (
+              <div className="my-2 p-3 border border-[#00ff00]/30 rounded bg-black/30 w-full max-w-md">
+                <p className="text-xs opacity-60 mb-2">Select clear option:</p>
+                {clearOptions.map((option, idx) => (
+                  <div
+                    key={idx}
+                    className={`text-sm py-1 px-2 ${idx === selectedClearOption
+                      ? 'bg-[#00ff00] text-black font-bold'
+                      : 'text-[#00ff00]'
+                      }`}
+                  >
+                    {idx === selectedClearOption && '► '}
+                    {option}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Delete mode file list */}
+            {deleteMode && deleteFiles.length > 0 && (
+              <div className="my-2 p-3 border border-[#00ff00]/30 rounded bg-black/30 w-full max-w-md">
+                <p className="text-xs opacity-60 mb-2">Select file to delete:</p>
+                {deleteFiles.map((file, idx) => (
+                  <div
+                    key={file.id}
+                    className={`text-sm py-1 px-2 ${idx === selectedFileIndex
+                      ? 'bg-[#00ff00] text-black font-bold'
+                      : 'text-[#00ff00]'
+                      }`}
+                  >
+                    {idx === selectedFileIndex && '► '}
+                    {file.filename} <span className="opacity-50 text-xs">({file.mode})</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="relative mt-2">
+              <div className="flex items-center gap-1 text-sm">
+                <span className="text-[#00ff00] opacity-60 shrink-0">
+                  me@ai<span className="opacity-40">:</span>
+                  <span className="opacity-60">~</span>
+                  <span className="text-[#00ff00]">$</span>
+                </span>
+                <span className="text-[#00ff00] relative">
+                  {input.split('').map((char, i) => (
+                    <span key={i} className="relative inline-block">
+                      {i === cursorPosition && isFocused && (
+                        <span className="absolute inset-0 bg-[#00ff00] animate-pulse" />
+                      )}
+                      <span className={i === cursorPosition && isFocused ? "relative text-black" : "relative"}>
+                        {char === ' ' ? '\u00A0' : char}
+                      </span>
+                    </span>
+                  ))}
+                  {cursorPosition === input.length && isFocused && (
+                    <span className="inline-block bg-[#00ff00] animate-pulse">
+                      <span className="text-black opacity-0">_</span>
+                    </span>
+                  )}
+                </span>
+              </div>
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  setCursorPosition(e.target.value.length);
+                }}
+                onKeyDown={handleKeyDown}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                disabled={isLoading}
+                className="absolute inset-0 opacity-0 w-full"
+                autoFocus
+                spellCheck={false}
+              />
+            </form>
+
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Clear mode options menu */}
-          {clearMode && (
-            <div className="mb-4 p-3 border border-[#00ff00]/30 rounded bg-black/30">
-              <p className="text-xs opacity-60 mb-2">Select clear option:</p>
-              {clearOptions.map((option, idx) => (
-                <div
-                  key={idx}
-                  className={`text-sm py-1 px-2 ${idx === selectedClearOption
-                    ? 'bg-[#00ff00] text-black font-bold'
-                    : 'text-[#00ff00]'
-                    }`}
-                >
-                  {idx === selectedClearOption && '► '}
-                  {option}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Delete mode file list */}
-          {deleteMode && deleteFiles.length > 0 && (
-            <div className="mb-4 p-3 border border-[#00ff00]/30 rounded bg-black/30">
-              <p className="text-xs opacity-60 mb-2">Select file to delete:</p>
-              {deleteFiles.map((file, idx) => (
-                <div
-                  key={file.id}
-                  className={`text-sm py-1 px-2 ${idx === selectedFileIndex
-                    ? 'bg-[#00ff00] text-black font-bold'
-                    : 'text-[#00ff00]'
-                    }`}
-                >
-                  {idx === selectedFileIndex && '► '}
-                  {file.filename} <span className="opacity-50 text-xs">({file.mode})</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="relative mt-4 pt-3 border-t border-[#00ff00]/20">
-            <div className="flex items-center gap-1 text-sm">
-              <span className="text-[#00ff00] opacity-60 shrink-0">
-                me@ai<span className="opacity-40">:</span>
-                <span className="opacity-60">~</span>
-                <span className="text-[#00ff00]">$</span>
-              </span>
-              <span className="text-[#00ff00] relative">
-                {input.split('').map((char, i) => (
-                  <span key={i} className="relative inline-block">
-                    {i === cursorPosition && isFocused && (
-                      <span className="absolute inset-0 bg-[#00ff00] animate-pulse" />
-                    )}
-                    <span className={i === cursorPosition && isFocused ? "relative text-black" : "relative"}>
-                      {char === ' ' ? '\u00A0' : char}
-                    </span>
-                  </span>
-                ))}
-                {cursorPosition === input.length && isFocused && (
-                  <span className="inline-block bg-[#00ff00] animate-pulse">
-                    <span className="text-black opacity-0">_</span>
-                  </span>
-                )}
-              </span>
-            </div>
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => {
-                setInput(e.target.value);
-                setCursorPosition(e.target.value.length);
-              }}
-              onKeyDown={handleKeyDown}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              disabled={isLoading}
-              className="absolute inset-0 opacity-0 w-full"
-              autoFocus
-              spellCheck={false}
-            />
-          </form>
-
-          <div className="mt-3 pt-2 border-t border-[#00ff00]/10 text-[10px] opacity-40 flex justify-between">
+          <div className="mt-3 pt-2 border-t border-[#00ff00]/10 text-[10px] opacity-40 flex justify-between shrink-0">
             <span>STATUS: {isLoading ? 'PROCESSING...' : clearMode ? 'CLEAR MODE' : deleteMode ? 'DELETE MODE' : 'READY'}</span>
             <span>MSGS: {messages.length}</span>
           </div>
         </div>
 
-        <p className="text-center mt-3 text-[10px] opacity-30">
+        <p className="text-center mt-3 text-[10px] opacity-30 shrink-0">
           Powered by Groq LPU™
         </p>
       </div>
